@@ -1,152 +1,88 @@
-import os
 import json
-import logging
-from dataclasses import dataclass, asdict
-from typing import Dict, Any
-from pathlib import Path
-from dotenv import load_dotenv
+import os
+import streamlit as st
 
-# ============================================================
-#  CONFIGURATION
-# ============================================================
+DATA_FILE = "saas_data.json"
 
-load_dotenv()  # Load .env if present
+DEFAULT_DATA = {
+    "recipes": [],
+    "categories": [
+        "Breakfast",
+        "Lunch",
+        "Dinner",
+        "Dessert",
+        "Snacks",
+        "Meal Prep"
+    ],
+    "favorites": [],
+    "tasks": [],
+    "social_posts": [],
+    "properties": [],
+    "appointments": []
+}
 
-DATA_FILE = os.getenv("SAAS_DATA_FILE", "saas_data.json")
-LOG_LEVEL = os.getenv("SAAS_LOG_LEVEL", "INFO").upper()
-
-# ============================================================
-#  LOGGING SETUP
-# ============================================================
-
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    handlers=[logging.StreamHandler()]
-)
-
-logger = logging.getLogger("SaaSApp")
-
-
-# ============================================================
-#  DEFAULT DATA MODEL
-# ============================================================
-
-@dataclass
-class SaaSData:
-    recipes: list
-    categories: list
-    favorites: list
-    tasks: list
-    social_posts: list
-    properties: list
-    appointments: list
-
-    @staticmethod
-    def default():
-        return SaaSData(
-            recipes=[],
-            categories=[
-                "Breakfast", "Lunch", "Dinner",
-                "Dessert", "Snacks", "Meal Prep"
-            ],
-            favorites=[],
-            tasks=[],
-            social_posts=[],
-            properties=[],
-            appointments=[]
-        )
-
-
-# ============================================================
-#  STORAGE SERVICE
-# ============================================================
-
-class StorageService:
-    def __init__(self, file_path: str):
-        self.file_path = Path(file_path)
-        logger.info(f"Storage initialized at {self.file_path}")
-
-    def load(self) -> SaaSData:
-        """Load JSON data from disk with safe fallback."""
-        if not self.file_path.exists():
-            logger.warning("Data file not found. Using default dataset.")
-            return SaaSData.default()
-
+# -----------------------------------------------------------
+# LOAD DATA
+# -----------------------------------------------------------
+def load_data():
+    if os.path.exists(DATA_FILE):
         try:
-            with open(self.file_path, "r") as f:
-                raw = json.load(f)
-                logger.info("Data loaded successfully.")
-                return SaaSData(**raw)
-        except Exception as e:
-            logger.error(f"Failed to load data: {e}")
-            return SaaSData.default()
+            with open(DATA_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return DEFAULT_DATA.copy()
 
-    def save(self, data: SaaSData):
-        """Persist data to disk safely."""
-        try:
-            with open(self.file_path, "w") as f:
-                json.dump(asdict(data), f, indent=2)
-            logger.info("Data saved successfully.")
-        except Exception as e:
-            logger.error(f"Failed to save data: {e}")
+# -----------------------------------------------------------
+# SAVE DATA
+# -----------------------------------------------------------
+def save_data():
+    data = {
+        "recipes": st.session_state.recipes,
+        "categories": st.session_state.categories,
+        "favorites": st.session_state.favorites,
+        "tasks": st.session_state.tasks,
+        "social_posts": st.session_state.social_posts,
+        "properties": st.session_state.properties,
+        "appointments": st.session_state.appointments
+    }
 
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
-# ============================================================
-#  APPLICATION CORE
-# ============================================================
+# -----------------------------------------------------------
+# INITIALIZE SESSION STATE
+# -----------------------------------------------------------
+data = load_data()
 
-class SaaSApp:
-    def __init__(self, storage: StorageService):
-        self.storage = storage
-        self.state = storage.load()
+for key, value in data.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-    # -----------------------------
-    # Example CRUD operations
-    # -----------------------------
+# -----------------------------------------------------------
+# SIMPLE UI TO SHOW DATA IS LOADED
+# -----------------------------------------------------------
+st.title("Data Loader Test")
 
-    def add_recipe(self, name: str):
-        if not name:
-            logger.error("Recipe name cannot be empty.")
-            return False
+st.subheader("Recipes")
+st.write(st.session_state.recipes)
 
-        self.state.recipes.append(name)
-        logger.info(f"Recipe added: {name}")
-        self.storage.save(self.state)
-        return True
+st.subheader("Categories")
+st.write(st.session_state.categories)
 
-    def add_task(self, task: str):
-        if not task:
-            logger.error("Task cannot be empty.")
-            return False
+st.subheader("Tasks")
+st.write(st.session_state.tasks)
 
-        self.state.tasks.append(task)
-        logger.info(f"Task added: {task}")
-        self.storage.save(self.state)
-        return True
+st.subheader("Social Posts")
+st.write(st.session_state.social_posts)
 
-    def list_all(self) -> Dict[str, Any]:
-        """Return all data in a clean structure."""
-        return asdict(self.state)
+st.subheader("Properties")
+st.write(st.session_state.properties)
 
+st.subheader("Appointments")
+st.write(st.session_state.appointments)
 
-# ============================================================
-#  MAIN ENTRYPOINT
-# ============================================================
-
-def main():
-    logger.info("Starting SaaS Application...")
-
-    storage = StorageService(DATA_FILE)
-    app = SaaSApp(storage)
-
-    # Example usage (replace with API, CLI, or UI layer)
-    app.add_recipe("Sample Recipe")
-    app.add_task("Sample Task")
-
-    logger.info("Current State:")
-    logger.info(json.dumps(app.list_all(), indent=2))
-
-
-if __name__ == "__main__":
-    main()
+# Button to test saving
+if st.button("Save Data"):
+    save_data()
+    st.success("Data saved!")
